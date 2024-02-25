@@ -1,7 +1,7 @@
 use std::fmt;
 
-// #[derive(Debug)]
-struct Sudoku {
+#[allow(dead_code)]
+pub struct Sudoku {
     original_board: [u8; 81],
     solvable_board: [u8; 81],
 }
@@ -28,7 +28,10 @@ impl fmt::Display for Sudoku {
     }
 }
 
+#[allow(dead_code)]
 impl Sudoku {
+    // FUNDAMENTAL OPERATIONS
+
     pub fn new(board: [u8; 81]) -> Self {
         Sudoku {
             original_board: board,
@@ -52,71 +55,54 @@ impl Sudoku {
         self.solvable_board[index as usize]
     }
 
-    fn set_solvable_cell(&mut self, row: u8, col: u8, value: u8) {
-        self.solvable_board[Sudoku::to_index(row, col) as usize] = value
+    fn set_solvable_cell(&mut self, index: u8, value: u8) {
+        self.solvable_board[index as usize] = value
     }
 
-    // note: the way these functions are is implemented, it only checks the row / column / box for duplicates of the given value. This should this is checked for every update, thus we'll always know that everything except the single addition / subtraction is valid, thus the only thing that would be invalid is the new value
-    fn is_valid_row_for_value(&self, index: u8, value: u8) -> bool {
-        let (row, col) = Sudoku::to_row_col(index);
-        let cells_to_check = [0, 1, 2, 3, 4, 5, 6, 7, 8].iter().map(|x| x + 9 * row);
-        let mut count = 0;
-        for cell_index in cells_to_check {
-            if self.solvable_board[cell_index as usize] == value {
-                count += 1;
-            }
-        }
-        if count <= 1 {
-            return true;
-        } else {
-            return false;
-        }
-    }
+    // VALIDATION
 
-    fn is_valid_col_for_value(&self, index: u8, value: u8) -> bool {
-        let (row, col) = Sudoku::to_row_col(index);
-        let cells_to_check = [0, 9, 18, 27, 36, 45, 54, 63, 72]
+    fn is_valid_function(&self, start_cell: u8, cell_pattern: [u8; 9]) -> bool {
+        let mut cells = cell_pattern
             .iter()
-            .map(|x| x + (col) % 9);
-        let mut count = 0;
-        for cell_index in cells_to_check {
-            if self.get_solvable_cell(cell_index) == value {
-                count += 1;
+            .map(|x| self.get_solvable_cell(x + 9 * row))
+            .collect::<Vec<u8>>();
+        cells.sort();
+        for i in 0..8 {
+            if cells[i] != 0 && cells[i] == cells[i + 1] {
+                return false;
             }
         }
-        if count <= 1 {
-            return true;
-        } else {
-            return false;
-        }
+        return true;
     }
 
-    fn is_valid_box_for_value(&self, index: u8, value: u8) -> bool {
+    fn is_valid_row(&self, index: u8) -> bool {
+        let (row, _) = Sudoku::to_row_col(index);
+        let start_cell = 9 * row;
+        let cells_pattern = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+        self.is_valid_function(start_cell, cells_pattern)
+    }
+
+    fn is_valid_col(&self, index: u8) -> bool {
+        let (_, col) = Sudoku::to_row_col(index);
+        let start_cell = col;
+        let cells_pattern = [0, 9, 18, 27, 36, 45, 54, 63, 72];
+        self.is_valid_function(start_cell, cells_pattern)
+    }
+
+    fn is_valid_box(&self, index: u8) -> bool {
         let (row, col) = Sudoku::to_row_col(index);
         let region = (col / 3) + 3 * (row / 3);
-        let cells_to_check = [0, 1, 2, 9, 10, 11, 18, 19, 20]
-            .iter()
-            .map(|x| x + 3 * (region % 3) + 27 * (region / 3));
-        let mut count = 0;
-        for cell_index in cells_to_check {
-            if self.get_solvable_cell(cell_index) == value {
-                count += 1;
-            }
-        }
-        if count <= 1 {
-            return true;
-        } else {
-            return false;
-        }
+        let start_cell = 3 * (region % 3) + 27 * (region / 3);
+        let cells_pattern = [0, 1, 2, 9, 10, 11, 18, 19, 20];
+        self.is_valid_function(start_cell, cells_pattern)
     }
 
-    // helper functions for backtracking
-    // (from here, use row, col because these are higher level functions, implementation should use index since it is more accurate to how the data is modelled)
+    // BACKTRACKING
+
     fn is_valid_placement(&self, index: u8, value: u8) -> bool {
-        if self.is_valid_row_for_value(index, value)
-            && self.is_valid_col_for_value(index, value)
-            && self.is_valid_box_for_value(index, value)
-        {
+        if self.is_valid_row(index)
+            && self.is_valid_col(index)
+            && self.is_valid_box(index) {
             return true;
         }
         return false;
@@ -133,35 +119,27 @@ impl Sudoku {
     }
 
     pub fn backtrack(&mut self) -> bool {
-        let mut cell_pointer = 0;
+        let mut cell_pointer: i8 = 0;
         while 0 <= cell_pointer && cell_pointer < 81 {
-            if self.get_original_cell(cell_pointer) != 0 {
-                return true; //nonesense
+            if self.get_original_cell(cell_pointer as u8) != 0 {
+                cell_pointer += 1;
+                continue;
+            }
+            let next_valid_value = self.get_next_valid_value_from_cell(cell_pointer as u8);
+            if next_valid_value > 0 {
+                self.set_solvable_cell(cell_pointer as u8, next_valid_value)
+            } else {
+                self.set_solvable_cell(cell_pointer as u8, 0);
+                cell_pointer -= 1;
             }
         }
         // terminal state is reached
-        if cell_pointer < 81 {
+        if cell_pointer == 81 {
             return true; // true for solvable board
-        } else if cell_pointer >= 0 {
-            return false;
-            // false for unsolvable board
+        } else if cell_pointer == -1 {
+            return false; // false for impossible board
         } else {
-            panic!("Somehow escaped the main body without correctly terminating");
+            panic!("Escaped main loop without correctly terminating");
         }
     }
-}
-
-fn main() {
-    let sudoku_board: [u8; 81] = [
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
-    let mut s1 = Sudoku::new(sudoku_board);
-    s1.set_solvable_cell(1, 1, 4);
-    s1.set_solvable_cell(2, 1, 3);
-    s1.set_solvable_cell(0, 0, 1);
-    println!("{}", s1.get_next_valid_value_from_cell(1));
-    // println!("{}", s1.is_valid_box_for_value(0, 4));
-    println!("{}", s1);
 }
