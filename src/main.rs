@@ -1,7 +1,7 @@
 mod sudoku_backtrack;
 use sudoku_backtrack::*;
 
-pub const BACKTRACK_TIME_STEP_MS: u32 = 200;
+pub const BACKTRACK_TIME_STEP_MS: u32 = 100;
 
 fn main() {
     let sudoku_board: [u8; 81] = [
@@ -19,6 +19,7 @@ fn main() {
     ];
 
     let mut sudoku = Sudoku::new(sudoku_board);
+    println!("Initial Board \n{}", sudoku);
     sudoku.backtrack(false);
 
 }
